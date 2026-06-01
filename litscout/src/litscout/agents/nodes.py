@@ -10,8 +10,8 @@ import json
 import logging
 from typing import Any
 
-from langchain_ollama import ChatOllama
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_ollama import ChatOllama
 
 from litscout.agents.state import ResearchState
 from litscout.config import settings
@@ -84,7 +84,13 @@ def ranking_node(state: ResearchState) -> dict[str, Any]:
     )
 
     articles_summary = [
-        {"index": i, "title": a.title, "year": a.year, "citations": a.citation_count, "venue": a.venue}
+        {
+            "index": i,
+            "title": a.title,
+            "year": a.year,
+            "citations": a.citation_count,
+            "venue": a.venue
+        }
         for i, a in enumerate(candidates)
     ]
 
