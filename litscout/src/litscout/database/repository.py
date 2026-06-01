@@ -88,6 +88,9 @@ class SessionRepository:
             rank=rank
         )
         self.session.add(link)
+        self.session.flush()
+        # Refresh to update relationships
+        self.session.expire(research_session, ["articles"])
 
     def get_with_articles(self, session_id: int) -> ResearchSession | None:
         return self.session.get(ResearchSession, session_id)
