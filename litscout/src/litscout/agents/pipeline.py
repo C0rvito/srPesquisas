@@ -41,8 +41,8 @@ def build_graph() -> StateGraph:
 research_graph = build_graph()
 
 
-def run_pipeline(query: str) -> ResearchState:
+def run_pipeline(query: str) -> dict:
     """Convenience wrapper: run the full pipeline for a query string."""
-    initial_state = ResearchState(query=query)
+    initial_state = {"query": query}
     final_state = research_graph.invoke(initial_state)
-    return ResearchState(**final_state)
+    return final_state

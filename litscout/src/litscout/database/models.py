@@ -35,6 +35,9 @@ class ResearchSession(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Path to technical analysis in bib/
+    analysis_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     # Relationships
     articles: Mapped[list[Article]] = relationship(
@@ -46,6 +49,24 @@ class ResearchSession(Base):
 
     def __repr__(self) -> str:
         return f"<ResearchSession id={self.id} query={self.query!r}>"
+
+
+# ---------------------------------------------------------------------------
+# Interaction History (Questions asked to the DB)
+# ---------------------------------------------------------------------------
+
+class Interaction(Base):
+    """Stores questions asked to the knowledge base and paths to their synthesized answers."""
+
+    __tablename__ = "interactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 # ---------------------------------------------------------------------------

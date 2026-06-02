@@ -21,11 +21,14 @@ class SearchOrchestrator:
 
     def run(self, query: str, limit_per_source: int = 20) -> SearchResult:
         """Run search on all sources, merge and deduplicate."""
-        logger.info("[Orchestrator] Running search for: %r", query)
+        # Refine query to focus on cytotoxicity
+        # Adding synonyms to increase reach while maintaining focus
+        refined_query = f"{query} cytotoxicity OR citotoxicidade"
+        logger.info("[Orchestrator] Running search for: %r", refined_query)
         
         # 1. Fetch from sources
-        s_results = self.scholarly.search(query, limit=limit_per_source)
-        o_results = self.openalex.search(query, limit=limit_per_source)
+        s_results = self.scholarly.search(refined_query, limit=limit_per_source)
+        o_results = self.openalex.search(refined_query, limit=limit_per_source)
         
         all_articles = s_results + o_results
         
@@ -39,7 +42,7 @@ class SearchOrchestrator:
                 art.doi = self.doi_resolver.resolve_by_title(art.title)
         
         return SearchResult(
-            query=query,
+            query=query, # Original query for DB
             articles=ranked,
             top_n=ranked[:10]  # Candidates for LLM ranking
         )
