@@ -20,15 +20,14 @@ WORKDIR /opt/projeto_ai_pesquisas
 # Copiando apenas o manifesto primeiro para usufruir de cache das camadas do Docker
 COPY pyproject.toml README.md ./
 
+# Copiando todo o resto da estrutura de código ANTES da instalação para evitar ModuleNotFoundError
+COPY src/ ./src/
+
 # Instalação das dependências lendo do pyproject.toml
 RUN uv pip install --system -e .
-
-# Copiando todo o resto da estrutura de código
-COPY src/ ./src/
 
 # Inicialização restrita
 EXPOSE 8000
 
-# Como o projeto atual é um CLI, mantemos o comando base de ajuda.
-# Futuramente pode ser substituído por uvicorn se adicionarmos uma API REST
-CMD ["sr_pesquisas", "--help"]
+# Comando para iniciar o servidor do Streamlit na porta 8000
+CMD ["streamlit", "run", "src/sr_pesquisas/app.py", "--server.port=8000", "--server.address=0.0.0.0"]
