@@ -1,0 +1,111 @@
+name: Automacao de Entrega Continua de Inteligencia Artificial
+
+# Evento sentinela nas ramificações vitais de entrega
+on:
+  push:
+    branches: [ main ]
+
+# Configuração de variáveis abstratas para empacotamento externo e referências no repositório de hospedagem do projeto
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # FASE 1: RIGOR ANALÍTICO (Bateria Testes Pytest em Runner Efêmero)
+  test_and_lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Operação de Descida - Captura Integral da Árvore de Código
+        uses: actions/checkout@v4
+        
+      - name: Instalacao da Ferramenta UV (Gerenciador Veloz)
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "srPesquisas/pyproject.toml"
+
+      - name: Parametrização Otimizada da Linguagem Principal
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Instalacao de Dependencias Isoladas do Linux
+        run: |
+          cd srPesquisas
+          uv sync
+
+      - name: Despacho Global das Validações (Mocks)
+        run: |
+          cd srPesquisas
+          # Executa estritamente os testes mockados para validar os nodes LangGraph sem LLM Real
+          uv run pytest tests/ -v
+
+
+  # FASE 2: EMPACOTAMENTO DA CÁPSULA IMUTÁVEL (Build)
+  build_container_push:
+    needs: test_and_lint # Conexão Estrita - Exige obrigatoriedade da solidez nos testes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Necessário para empilhar imagens ao GitHub Container Registry
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Handshake Autenticado com Repositórios Virtuais do GitHub Packages
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Tokens contíguos de autorizações da provedora
+          
+      - name: Compilação Massiva das Estruturas C do Dockerfile em Ambiente GitHub Distante
+        uses: docker/build-push-action@v5
+        with:
+          context: ./srPesquisas
+          file: ./srPesquisas/Dockerfile
+          push: true
+          # Arquivamento persistente do binário através de tags e Hash único
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} 
+
+
+  # FASE 3: IMPLANTAÇÃO ESTÉRIL (Deployment Remoto sem Atrito no Droplet DigitalOcean)
+  deploy_em_nuvem:
+    needs: build_container_push # Conexão Lógica
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Tunelamento SSH ao Droplet Hospedeiro Integrado com Scripts Nativos Remotos
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USERNAME }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            # Posicionamento absoluto no servidor
+            mkdir -p /opt/projeto_ai_pesquisas
+            cd /opt/projeto_ai_pesquisas
+            
+            # Puxa o docker-compose.yml fresquinho via curl bruto da API do Github (pode substituir por clone)
+            # Para isso o rep precisa ser publico ou usar token. 
+            # Assumindo que você subiu o compose pro Droplet ou fará clone. Aqui está o modelo seguro:
+            
+            # Autorizações do sistema local do Servidor para realizar o download direto de uma imagem criptografada do GitHub Containers
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Puxamos apenas a camada do Sistema Python Recém Atualizado com Custo Zero
+            # Atualiza o arquivo compose usando o caminho local onde está clonado
+            docker compose pull
+            
+            # Subida Orquestrada Silenciosa no Fundo (sem downtime real aparente)
+            docker compose up -d --remove-orphans
+            
+            # Expurgar imagens fantasmas que lotariam o NVME da DigitalOcean
+            docker image prune -af
+            
+            echo "A Autonomia Foi Alçada Com Sucesso Absoluto na Base da Infraestrutura Produtiva!"
