@@ -1,8 +1,7 @@
 import streamlit as st
 import time
-from sr_pesquisas.agents.pipeline import run_pipeline
+from sr_pesquisas.agents.pipeline import research_graph
 from sr_pesquisas.database.engine import init_db
-from sr_pesquisas.ui.tracer import tracer
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -87,6 +86,15 @@ st.markdown("""
         font-weight: bold;
     }
 
+    .status-log {
+        background-color: #111;
+        border-left: 3px solid var(--terminal-green);
+        padding: 10px;
+        margin: 5px 0;
+        font-size: 0.9em;
+        color: var(--terminal-green);
+    }
+
     /* Custom Scrollbar */
     ::-webkit-scrollbar {
         width: 10px;
@@ -115,36 +123,67 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 query = st.text_input("QUERY_STRING >", placeholder="Digite o composto ou tema de pesquisa...")
 
-col1, col2 = st.columns([1, 4])
-with col1:
-    search_btn = st.button("EXECUTAR BUSCA")
-
-if search_btn and query:
+if st.button("EXECUTAR BUSCA") and query:
     st.markdown("---")
-    with st.status("ESTABELECENDO CONEXÃO COM O CORE ANALYTICS...", expanded=True) as status:
-        st.write("Iniciando Pipeline de Inteligência...")
-        try:
-            # Captura o início do tempo para mostrar um "feeling" de terminal
-            start_time = time.time()
-            
-            # Executa o Pipeline real
-            final_state = run_pipeline(query)
-            
-            elapsed = time.time() - start_time
-            status.update(label=f"BUSCA CONCLUÍDA EM {elapsed:.2f}s", state="complete", expanded=False)
-            
-            articles = (
-                final_state.get("enriched_articles") or 
-                final_state.get("ranked_articles") or 
-                []
-            )
+    
+    # Area de Logs e Telemetria
+    log_container = st.container()
+    results_container = st.container()
+    
+    with log_container:
+        st.subheader("PIPELINE_TELEMETRY")
+        status_area = st.empty()
+        # Dicionário para manter o histórico de logs na tela
+        if 'log_history' not in st.session_state:
+            st.session_state.log_history = []
+        st.session_state.log_history = [] # Limpa para nova busca
 
-            if not articles:
+    try:
+        inputs = {"query": query}
+        final_articles = []
+        
+        # Mapeamento de nós do Grafo
+        node_map = {
+            "query_planner": "🧠 Planejamento de Busca (LLM)",
+            "search": "🌐 Buscando em Google Scholar & OpenAlex",
+            "fetch_full_texts": "📄 Extraindo Metadados e Abstracts",
+            "vision_extraction": "👁️ Analisando Gráficos (Vision)",
+            "ranking": "⚖️ Ranqueamento por Relevância (LLM 70B)",
+            "summarise": "📝 Gerando Resumos Executivos",
+            "persist": "💾 Persistindo em Banco de Dados"
+        }
+
+        # Streaming do LangGraph
+        for output in research_graph.stream(inputs):
+            for node_name, values in output.items():
+                display_name = node_map.get(node_name, node_name.upper())
+                st.session_state.log_history.append(f"> {display_name} : OK")
+                
+                # Atualiza a área de status com todos os logs acumulados
+                status_html = "".join([f'<div class="status-log">{log}</div>' for log in st.session_state.log_history])
+                status_area.markdown(status_html, unsafe_allow_html=True)
+                
+                # Captura dados conforme aparecem no fluxo
+                if "enriched_articles" in values:
+                    final_articles = values["enriched_articles"]
+                elif "ranked_articles" in values and not final_articles:
+                    final_articles = values["ranked_articles"]
+                elif "search_result" in values and not final_articles:
+                    # Fallback caso pare antes do ranking/summarise
+                    if hasattr(values["search_result"], "articles"):
+                        final_articles = values["search_result"].articles
+
+        # Exibição dos Resultados
+        with results_container:
+            st.markdown("---")
+            st.success("ANÁLISE FINALIZADA COM SUCESSO.")
+            
+            if not final_articles:
                 st.warning("AVISO: NENHUM DADO ENCONTRADO PARA A QUERY INFORMADA.")
             else:
-                st.subheader(f"RESULTADOS: {len(articles)} ARTIGOS IDENTIFICADOS")
+                st.subheader(f"RESULTADOS: {len(final_articles)} ARTIGOS IDENTIFICADOS")
                 
-                for i, art in enumerate(articles, 1):
+                for i, art in enumerate(final_articles, 1):
                     with st.expander(f"[{i:02d}] {art.title.upper()}"):
                         st.markdown(f'<span class="tui-label">ANO:</span> {art.year or "N/A"}', unsafe_allow_html=True)
                         st.markdown(f'<span class="tui-label">CITAÇÕES:</span> {art.citation_count}', unsafe_allow_html=True)
@@ -152,19 +191,21 @@ if search_btn and query:
                         st.markdown(f'<span class="tui-label">LOCAL:</span> {art.venue or "N/A"}', unsafe_allow_html=True)
                         
                         st.markdown("---")
-                        st.markdown('<span class="tui-label">ANÁLISE IA (RELEVÂNCIA):</span>', unsafe_allow_html=True)
-                        st.write(art.relevance_rationale or "Processando justificativa...")
+                        st.markdown('<span class="tui-label">ANÁLISE IA (RESUMO/RELEVÂNCIA):</span>', unsafe_allow_html=True)
+                        st.write(art.ai_summary or art.relevance_rationale or "Análise pendente.")
                         
                         st.markdown("---")
                         st.markdown('<span class="tui-label">ABSTRACT:</span>', unsafe_allow_html=True)
                         st.write(art.abstract or "Resumo indisponível.")
 
-        except Exception as e:
-            st.error(f"ERRO CRÍTICO NO SISTEMA: {str(e)}")
-            status.update(label="FALHA NA OPERAÇÃO", state="error")
+    except Exception as e:
+        st.error(f"ERRO CRÍTICO NO SISTEMA: {str(e)}")
+        st.session_state.log_history.append(f"!! FALHA NO NÓ: {str(e)}")
+        status_html = "".join([f'<div class="status-log" style="color:red">{log}</div>' for log in st.session_state.log_history])
+        status_area.markdown(status_html, unsafe_allow_html=True)
 
 # --- FOOTER ---
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown('<div style="text-align: center; color: #555; font-size: 0.8em;">'
-            'SISTEMA OPERACIONAL SRPESQUISAS // KERNEL: PYTHON 3.12 // AGENTS: LANGGRAPH'
+            'SISTEMA OPERACIONAL SRPESQUISAS // GPU: NVIDIA H200 (141GB) // AGENTS: LANGGRAPH'
             '</div>', unsafe_allow_html=True)
