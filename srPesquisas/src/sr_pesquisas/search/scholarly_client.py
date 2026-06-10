@@ -44,6 +44,7 @@ class ScholarlyClient:
                 
             logger.info("[Scholarly] Found %d articles", len(articles))
         except Exception as exc:
-            logger.error("[Scholarly] Search failed: %s", exc)
+            logger.error("[Scholarly] Search failed (likely blocked): %s. Skipping source.", exc)
+            return []
             
         return articles
