@@ -3,16 +3,19 @@ version: '3.8'
 services:
   # Instanciando o coração nativo em Python construído através do Dockerfile
   aplicacao_web_ia:
-    build: 
-      context: .
+    image: ghcr.io/c0rvito/srpesquisas:latest
     container_name: sr_pesquisas_engine
+    # O SEGREDO: Isso cria uma ponte direta para o seu servidor (Host)
+    # Essencial para que o container fale com o Ollama rodando na H200
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always # Emissão de ordens ao Linux para ressuscitar imperativamente em caso de crash
     ports:
       - "8000:8000"
     environment:
       # Aponta para o daemon do Ollama rodando NATIVAMENTE no servidor Linux hospedeiro
-      # 172.17.0.1 é tipicamente o IP do host na rede bridge padrão do Docker no Linux
-      - OLLAMA_BASE_URL=http://172.17.0.1:11434
+      # host.docker.internal é a forma mais robusta de acessar o host a partir do container
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - ENV_API=producao_nuvem
     volumes:
       # Ancoragem mecânica para proteger a persistência do banco de dados SQLite local
